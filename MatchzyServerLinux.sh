@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cs2InstallDir=""
+matchzyLatestReleaseUrl="https://api.github.com/repos/shobhit-pathak/MatchZy/releases/latest"
 
 # Check if the user has provided a CS2 installation directory
 if [ -z "$1" ]; then
@@ -14,25 +15,9 @@ else
     fi
 fi
 
-#check if steamcmd is installed
-if ! command -v steamcmd >/dev/null 2>&1; then
-    echo "Error: steamcmd is not installed or could not be found, check your PATH." >&2
-    exit 1
-fi
-
-#check if curl and jq are installed
-if ! command -v curl &>/dev/null; then
-    echo "Error: curl is not installed." >&2
-    exit 1
-fi
-
-if ! command -v jq &>/dev/null; then
-    echo "Error: jq is not installed." >&2
-    exit 1
-fi
-
-if ! command -v unzip &>/dev/null; then
-    echo "Error: unzip is not installed." >&2
+# Check if steamcmd, curl, jq, and unzip are installed
+if ! command -v steamcmd >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "Error: One or more required dependencies are not installed or could not be found." >&2
     exit 1
 fi
 
@@ -47,7 +32,7 @@ if [ ! -d "$cs2InstallDir" ]; then
         mkdir -p "$cs2InstallDir"
         #run steamcmd with anonymous login and install CS2
         steamcmd +force_install_dir "$cs2InstallDir/" +login anonymous +app_update 730 validate +quit
-        
+
         # Check if CS2 was installed successfully
         if [ $? -eq 0 ]; then
             echo "CS2 installed successfully."
@@ -108,18 +93,15 @@ else
     exit 7
 fi
 
-
-# Define the URL of the latest release
-latestReleaseUrl="https://api.github.com/repos/shobhit-pathak/MatchZy/releases/latest"
-
 # Download the JSON object from latestReleaseUrl
-json=$(curl -s "$latestReleaseUrl")
+json=$(curl -s "$matchzyLatestReleaseUrl")
 
 # Extract the browser_download_url field from the first item in the assets array
 downloadUrl=$(echo "$json" | jq -r '.assets[0].browser_download_url')
 
 # Download the file from downloadUrl
 curl -L -o "/tmp/matchzy.zip" "$downloadUrl"
+
 # Check if the download was successful
 if [ $? -eq 0 ]; then
     echo "MatchZy downloaded successfully."
@@ -130,7 +112,6 @@ fi
 
 # Extract the downloaded archive to a temporary folder
 echo "Extracting MatchZy..."
-
 unzip -q -o "/tmp/matchzy.zip" -d /tmp/matchzy
 # Check if the extraction was successful
 if [ $? -eq 0 ]; then
@@ -151,7 +132,7 @@ if [ -d "$cs2InstallDir/game/csgo/addons" ]; then
         # Create a backup of the CS2 addons and cfg folder with the current date and time
         backupName="backup_$(date +%Y-%m-%d_%H-%M-%S)"
         tar -cf "$cs2InstallDir/backups/$backupName.tar" "$cs2InstallDir/game/csgo/addons" "$cs2InstallDir/game/csgo/cfg" "$cs2InstallDir/game/csgo/gameinfo.gi"
-        
+
         # Check if the backup was created successfully
         if [ $? -eq 0 ]; then
             echo "CS2 addons folder backup created successfully."
@@ -180,13 +161,12 @@ echo -e "\e[43;30mCS2_INSTALL_DIR: $cs2InstallDir\e[0m"
 
 TARGET_DIR="$cs2InstallDir/game/csgo"
 GAMEINFO_FILE="${TARGET_DIR}/gameinfo.gi"
+NEW_ENTRY="			Game	csgo/addons/metamod"
 
 if [ ! -f "${GAMEINFO_FILE}" ]; then
     echo "Error: ${GAMEINFO_FILE} does not exist in the specified directory."
     exit 1
 fi
-
-NEW_ENTRY="			Game	csgo/addons/metamod"
 
 if grep -Fxq "$NEW_ENTRY" "$GAMEINFO_FILE"; then
     echo "The entry '$NEW_ENTRY' already exists in ${GAMEINFO_FILE}. No changes were made."
@@ -201,11 +181,10 @@ else
             print;
         }
         /Game_LowViolence/ { found=1; }
-    ' "$GAMEINFO_FILE" > "$GAMEINFO_FILE.tmp" && mv "$GAMEINFO_FILE.tmp" "$GAMEINFO_FILE"
+    ' "$GAMEINFO_FILE" >"$GAMEINFO_FILE.tmp" && mv "$GAMEINFO_FILE.tmp" "$GAMEINFO_FILE"
 
     echo "The file ${GAMEINFO_FILE} has been modified successfully. '$NEW_ENTRY' has been added."
 fi
-
 
 echo -e "\e[43;30mgameinfo.gi updated successfully.\e[0m"
 #terminate
